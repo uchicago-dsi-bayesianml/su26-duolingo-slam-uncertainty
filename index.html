@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SLAM — Project Tracker</title>
+<style>
+  :root{ color-scheme: light;
+    --ink:#14303a; --teal:#1f6f78; --lgry:#eef2f3; --mgry:#d6dde0; --acc:#b5461f; --bg:#f5f8f9;
+    --shane:#2f5b7c; --richard:#2e7d4f; --both:#8a6d1f;
+    --core:#b5461f; --coreplus:#b98900; --stretch:#8a8f96; --done:#2e7d4f; }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); margin:0; background:var(--bg); line-height:1.45}
+  a{color:var(--teal)}
+  .wrap{max-width:940px; margin:0 auto; padding:22px 20px 60px}
+  header h1{font-size:22px; margin:0 0 3px}
+  header .sub{font-size:13px; color:#5a6675; margin:0 0 16px}
+  .stats{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:14px}
+  .stat{background:#fff; border:1px solid var(--mgry); border-radius:10px; padding:10px 16px; min-width:120px}
+  .stat .n{font-size:22px; font-weight:800; line-height:1}
+  .stat .l{font-size:11px; color:#5a6675; margin-top:3px; text-transform:uppercase; letter-spacing:.4px}
+  .conn{display:flex; align-items:center; gap:7px; font-size:12.5px; color:#5a6675; margin-left:auto; align-self:center}
+  .dot{width:10px; height:10px; border-radius:50%; background:#b98900}
+  .dot.live{background:var(--done)} .dot.local{background:#8a8f96} .dot.connecting{background:#b98900}
+  .drive{display:inline-block; background:#fff; border:1px solid var(--mgry); border-radius:8px;
+    padding:8px 14px; font-size:13px; font-weight:600; text-decoration:none; margin-bottom:14px}
+  .bar-outer{background:var(--mgry); border-radius:9px; height:16px; overflow:hidden; margin:4px 0}
+  .bar-inner{background:var(--teal); height:100%; width:0; transition:width .3s}
+  .pct{font-size:13px; font-weight:700; margin-bottom:2px}
+  .ownerbar{font-size:12px; color:#5a6675; margin:4px 0 18px}
+  .ownerbar b{color:var(--ink)}
+  h2.section{font-size:15px; margin:22px 0 8px; padding-bottom:5px; border-bottom:2px solid var(--mgry)}
+  .checks{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px}
+  .ck{background:#fff; border:1px solid var(--mgry); border-left:4px solid var(--acc); border-radius:8px; padding:10px 12px}
+  .ck .t{font-weight:700; font-size:13px}
+  .ck .d{font-size:12px; color:#5a6675; margin-top:3px}
+  .flow{background:#fff; border:1px solid var(--mgry); border-radius:10px; padding:12px 16px; font-size:13px}
+  .flow ol{margin:6px 0 0; padding-left:18px} .flow li{margin:3px 0}
+  .ptitle{display:flex; align-items:center; gap:9px; font-size:15px; font-weight:800; margin:18px 0 6px}
+  .pdot{width:12px;height:12px;border-radius:50%}
+  .pdot.Shane{background:var(--shane)} .pdot.Richard{background:var(--richard)} .pdot.Both{background:var(--both)}
+  .pcount{font-size:12px; color:#5a6675; font-weight:500}
+  .task{background:#fff; border:1px solid var(--mgry); border-radius:9px; margin:7px 0; overflow:hidden}
+  .trow{display:flex; align-items:flex-start; gap:11px; padding:10px 13px; cursor:pointer}
+  .trow input{width:18px;height:18px;margin-top:1px;cursor:pointer;flex-shrink:0}
+  .tmain{flex:1}
+  .ttitle{font-size:14px}
+  .task.done .ttitle{text-decoration:line-through; color:#8a8f96}
+  .task.milestone .ttitle{color:var(--acc); font-weight:700}
+  .tbadges{margin-top:5px; display:flex; flex-wrap:wrap; gap:5px}
+  .badge{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px;color:#fff}
+  .b-Shane{background:var(--shane)} .b-Richard{background:var(--richard)} .b-Both{background:var(--both)}
+  .badge.cat{background:#5a6675}
+  .badge.pri-Core{background:var(--core)} .badge.pri-Coreplus{background:var(--coreplus)} .badge.pri-Stretch{background:var(--stretch)}
+  .badge.rq{background:#fff;color:var(--teal);border:1px solid var(--teal)}
+  .badge.due{background:#fff;color:var(--acc);border:1px solid var(--acc)}
+  .caret{color:#8a8f96;font-size:12px;margin-top:2px;white-space:nowrap}
+  .steps{display:none; padding:0 14px 12px 42px; font-size:13px; color:#28323a}
+  .steps ol{margin:4px 0;padding-left:18px} .steps li{margin:3px 0}
+  .steps .watch{margin-top:6px; font-size:12.5px; color:#7a3b1a}
+  .task.open .steps{display:block}
+  .legend{background:#fff;border:1px solid var(--mgry);border-radius:8px;padding:11px 14px;font-size:12.5px;color:#5a6675;margin-top:20px}
+  .reset{margin-top:12px;background:#fff;border:1px solid var(--acc);color:var(--acc);border-radius:8px;padding:7px 13px;font-size:12.5px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧠 SLAM — Uncertainty-Aware Modeling of Second-Language Acquisition</h1>
+    <p class="sub">Bayesian ML Final Project · ADSP 32014 · Summer 2026 · Team: Shane Dunkle &amp; Richard Pollitt</p>
+  </header>
+  <div class="stats">
+    <div class="stat"><div class="n" id="countdown">—</div><div class="l">days until Aug 17</div></div>
+    <div class="stat"><div class="n" id="donecount">0/0</div><div class="l">tasks complete</div></div>
+    <div class="conn"><span class="dot connecting" id="dot"></span><span id="conntext">connecting…</span></div>
+  </div>
+  <a class="drive" href="https://drive.google.com/drive/folders/1jc7b-Q46RQEnVS2cU02Zlv5DR752zzpj?usp=sharing" target="_blank" rel="noopener">📁 Open Project Google Drive</a>
+  <div class="pct" id="pct">Overall progress 0%</div>
+  <div class="bar-outer"><div class="bar-inner" id="bar"></div></div>
+  <div class="ownerbar" id="ownerbar"></div>
+  <h2 class="section">🚩 Milestones</h2>
+  <div class="checks">
+    <div class="ck"><div class="t">Subject submission — Week 4</div><div class="d">Jul 6 · finalized topic + working hierarchy prototype</div></div>
+    <div class="ck"><div class="t">Abstract — Week 6</div><div class="d">Jul 20 · dataset &amp; methodology; MCMC fit + calibration</div></div>
+    <div class="ck"><div class="t">Project due — Week 9</div><div class="d">Aug 10 · final write-up + code</div></div>
+    <div class="ck"><div class="t">Presentation — Week 10</div><div class="d">Aug 17 · live talk</div></div>
+  </div>
+  <h2 class="section">🗺️ How it all fits together — build order &amp; dependencies</h2>
+  <div class="flow"><ol>
+    <li><b>Phase 1 (Wk 1–2):</b> ingest SLAM → feature engineering → logistic baseline (the number to beat, ≈0.86 AUROC).</li>
+    <li><b>Phase 2 (Wk 3–6):</b> hierarchical Bayesian model → HMM acquisition stages → MCMC/ADVI fit → calibration.</li>
+    <li><b>Phase 3 (Wk 7–8):</b> Bayesian NN uncertainty → abstention / route-to-human → per-L1 analysis → model comparison (WAIC/LOO).</li>
+    <li><b>Ship (Wk 9–10):</b> write-up + code → presentation.</li>
+  </ol></div>
+  <div id="people"></div>
+  <div class="legend">
+    Click a task's title to expand its step-by-step how-to; use the checkbox to mark it done.
+    Checkmarks <b>sync live for the whole team</b> once Firebase is configured (Shane &amp; Richard see the same progress).
+    Until then, progress is saved in your browser.
+    <button class="reset" id="reset">Reset all checkmarks</button>
+  </div>
+</div>
+<script type="module">
+const firebaseConfig = {
+  databaseURL: "https://bayes-final-project-default-rtdb.firebaseio.com",
+  projectId: "bayes-final-project"
+};
+const SYNC_PATH = "slam-tracker/checks";
+const TASKS = [
+  {id:"ingest", owner:"Both", wk:"Wk 1-2", cat:"Data", pri:"Core", title:"Ingest SLAM data (EN/ES/FR) + EDA",
+   steps:["Download train/dev/test to data/ (git-ignored).","Write a parser — SLAM isn't CSV: blank-line-separated exercises, a # metadata line, then one line per token (id, token, POS, morphology, dependency, label). Build a one-row-per-token DataFrame.","EDA: error rate overall and by format / session / days / L1; tokens-per-user; class balance."],
+   watch:"Test labels are held out — use dev as held-out; errors are the minority class."},
+  {id:"feat", owner:"Richard", wk:"Wk 1-2", cat:"Data", pri:"Core", title:"Feature engineering & ETL",
+   steps:["Encode categoricals (format, session, client, L1) as indices (hierarchical) and one-hot/target-encoded (baseline).","Build CAUSAL history features per (user, skill): prior error rate, # prior exposures, time-since-last-seen (spaced repetition).","Add linguistic (POS/morphology/dependency) + word-frequency + cognate flags.","Persist as Parquet via an idempotent src/features.py."],
+   watch:"Only use past events (no leakage); fix the train/dev split by user + time."},
+  {id:"baseline", owner:"Richard", wk:"Wk 1-2", cat:"Modeling", pri:"Core", title:"Reproduce logistic baseline (AUROC vs ~0.86)",
+   steps:["L2-regularized logistic regression (scikit-learn) on the feature table.","Evaluate AUROC + PR-AUC on dev; record the number to beat.","Save predictions so Bayesian models are compared on the same split."],
+   watch:"Don't tune on the test set; report AUROC, not accuracy."},
+  {id:"hier", owner:"Shane", wk:"Wk 3", cat:"Modeling", pri:"Core", rq:"RQ1", title:"Hierarchical Bayesian error model prototype",
+   steps:["Start on a subsample (one course, 50-100k tokens) for fast iteration.","Varying intercepts for learner, L1 group, skill/format + item covariates; non-centered parameterization.","Fit NUTS (PyMC/NumPyro); get clean sampling before scaling."],
+   watch:"Non-centered params avoid divergences; weakly-informative priors."},
+  {id:"subject", owner:"Shane", wk:"Wk 4", cat:"Writing", pri:"Core", due:"Jul 6", title:"Submit project subject",
+   steps:["Use the Subject & Abstract draft in Notion; trim to length; submit on Canvas."], watch:"Confirm the exact due time on Canvas."},
+  {id:"hmm", owner:"Shane", wk:"Wk 5", cat:"Modeling", pri:"Core+", rq:"RQ2", title:"HMM acquisition-stage model (30-day timeline)",
+   steps:["Build per-learner sequences (daily/session correctness, optionally per skill).","Fit an HMM (start hmmlearn, then PyMC) with 2-4 states.","Interpret states as stages; read the transition matrix; add stage as a feature to test lift."],
+   watch:"Fix label-switching by ordering states on mean correctness; validate vs days-in-course."},
+  {id:"mcmc", owner:"Shane", wk:"Wk 6", cat:"Modeling", pri:"Core", rq:"RQ1", title:"MCMC / ADVI fit + diagnostics",
+   steps:["Confirm NUTS on the subsample: R-hat <= 1.01, good ESS, no divergences (ArviZ).","Scale with ADVI / mini-batch VI; sanity-check ADVI vs NUTS on the subsample.","Save the trace (InferenceData / netCDF)."],
+   watch:"ADVI underestimates uncertainty — note it; reparameterize if divergences persist."},
+  {id:"abstract", owner:"Shane", wk:"Wk 6", cat:"Writing", pri:"Core", due:"Jul 20", title:"Submit project abstract (dataset & methodology)",
+   steps:["Use the Subject & Abstract draft; add any early numbers; submit on Canvas."], watch:""},
+  {id:"calib", owner:"Both", wk:"Wk 6", cat:"Experiment", pri:"Core", rq:"RQ3", title:"Calibration experiments (ECE, Brier, reliability)",
+   steps:["Compute ECE, Brier, NLL; draw reliability diagrams (baseline vs Bayesian).","Use posterior-predictive mean probabilities, not a point estimate."],
+   watch:"Equal-frequency bins for ECE; compare at the same coverage."},
+  {id:"bnn", owner:"Shane", wk:"Wk 7", cat:"Modeling", pri:"Core", rq:"RQ3", title:"BNN + aleatoric/epistemic decomposition",
+   steps:["Small Bayesian NN (variational) or MC-dropout in PyTorch on the features.","Decompose: aleatoric = expected entropy; epistemic = mutual information across stochastic passes.","Compare uncertainty quality vs the hierarchical model."],
+   watch:"Do MC-dropout first (quick win); >=50 forward passes for stable estimates."},
+  {id:"abst", owner:"Shane", wk:"Wk 8", cat:"Experiment", pri:"Core", rq:"RQ3", title:"Abstention / route-to-human + risk-coverage",
+   steps:["Define a utility (cost of wrong vs cost of deferral); pick the threshold that maximizes expected utility.","Plot the risk-coverage curve; mark the operating point."],
+   watch:"Justify the cost ratio from the tutoring use-case."},
+  {id:"perl1", owner:"Shane", wk:"Wk 8", cat:"Experiment", pri:"Core+", rq:"RQ4", title:"Per-L1 / data-sparsity uncertainty (where to defer)",
+   steps:["Group epistemic uncertainty by L1, learner data-volume, and skill rarity.","Test: uncertainty rises for new learners / rare skills / under-represented L1s."],
+   watch:"Control for base error rate across groups."},
+  {id:"compare", owner:"Both", wk:"Wk 8", cat:"Experiment", pri:"Core+", title:"Model comparison (WAIC / PSIS-LOO)",
+   steps:["WAIC / PSIS-LOO (ArviZ compare) across pooled -> hierarchical -> +HMM -> +BNN.","Report predictive metrics (AUROC, calibration) alongside."],
+   watch:"Check Pareto-k for LOO; fall back to WAIC/held-out log-loss if bad."},
+  {id:"writeup", owner:"Both", wk:"Wk 9", cat:"Writing", pri:"Core", due:"Aug 10", title:"Final write-up + code",
+   steps:["Write from the Introduction & Methods and Results/Discussion scaffolds; drop in real figures/numbers.","Clean the repo: runnable src/, a reproduce-figures notebook, README run section."],
+   watch:"Freeze a random seed; one 'run everything' entry point."},
+  {id:"present", owner:"Both", wk:"Wk 10", cat:"Writing", pri:"Core", due:"Aug 17", title:"Project presentation",
+   steps:["Build from the 8-slide outline; lead with the 'route-to-human' hook; one method diagram; show calibration + risk-coverage."], watch:""},
+  {id:"skillhmm", owner:"Shane", wk:"Stretch", cat:"Modeling", pri:"Stretch", title:"(Stretch) Per-skill HMMs / more courses",
+   steps:["Only after the core lands: separate HMMs per skill, or extend to all three courses.","Watch compute; keep runs checkpointed."], watch:""},
+  {id:"scalevi", owner:"Richard", wk:"Stretch", cat:"Modeling", pri:"Stretch", title:"(Stretch) Scale full-data ADVI / mini-batch VI",
+   steps:["Move the hierarchical model to the full corpus with mini-batch ADVI.","Profile memory & runtime; checkpoint fits so long runs are resumable."], watch:""}
+];
+const OWNERS = ["Shane","Richard","Both"];
+const cls = s => (s||"").replace(/[^A-Za-z]/g,"");
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let state = JSON.parse(localStorage.getItem("slam_checks")||"{}");
+let open = {};
+let db=null, setFn=null;
+function setConn(mode, text){ document.getElementById("dot").className="dot "+mode; document.getElementById("conntext").textContent = text; }
+async function initSync(){
+  if(firebaseConfig && firebaseConfig.databaseURL){
+    try{
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+      const { getDatabase, ref, onValue, set } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+      const app = initializeApp(firebaseConfig);
+      const d = getDatabase(app); const r = ref(d, SYNC_PATH);
+      setFn = (obj)=> set(r, obj); db = d;
+      setConn("connecting","connecting…");
+      onValue(r, snap => { state = snap.val() || {}; setConn("live","live · synced"); render(); });
+      return;
+    }catch(e){ setConn("local","saved locally"); return; }
+  }
+  setConn("local","saved locally");
+}
+function persist(){ if(db && setFn){ setFn(state).catch(()=>{}); } else { localStorage.setItem("slam_checks", JSON.stringify(state)); } }
+function countdown(){ const days = Math.max(0, Math.ceil((new Date("2026-08-17T00:00:00") - new Date())/86400000)); document.getElementById("countdown").textContent = days; }
+function render(){
+  const total = TASKS.length;
+  const done = TASKS.filter(t=>state[t.id]).length;
+  document.getElementById("donecount").textContent = done+"/"+total;
+  document.getElementById("pct").textContent = "Overall progress "+(total?Math.round(100*done/total):0)+"%";
+  document.getElementById("bar").style.width = (total?100*done/total:0)+"%";
+  const by=o=>TASKS.filter(t=>t.owner===o), cd=a=>a.filter(t=>state[t.id]).length;
+  document.getElementById("ownerbar").innerHTML = OWNERS.map(o=>"<b>"+o+"</b> "+cd(by(o))+"/"+by(o).length).join(" · ");
+  const wrap = document.getElementById("people"); wrap.innerHTML="";
+  OWNERS.forEach(o => {
+    const list = by(o); if(!list.length) return;
+    const sec = document.createElement("div");
+    sec.innerHTML = '<div class="ptitle"><span class="pdot '+o+'"></span>'+o+' <span class="pcount">'+cd(list)+'/'+list.length+' done</span></div>';
+    list.forEach(t => {
+      const isDone = !!state[t.id]; const isOpen = !!open[t.id]; const ms = !!t.due;
+      const badges=[];
+      badges.push('<span class="badge b-'+o+'">'+o+'</span>');
+      badges.push('<span class="badge cat">'+esc(t.cat)+'</span>');
+      badges.push('<span class="badge pri-'+cls(t.pri)+'">'+esc(t.pri)+'</span>');
+      if(t.rq) badges.push('<span class="badge rq">'+esc(t.rq)+'</span>');
+      if(t.due) badges.push('<span class="badge due">Due '+esc(t.due)+'</span>');
+      const stepsHtml = "<ol>"+t.steps.map(s=>"<li>"+esc(s)+"</li>").join("")+"</ol>"+(t.watch?'<div class="watch"><b>Watch-out:</b> '+esc(t.watch)+'</div>':"");
+      const el = document.createElement("div");
+      el.className="task"+(isDone?" done":"")+(isOpen?" open":"")+(ms?" milestone":"");
+      el.innerHTML =
+        '<div class="trow" data-toggle="'+t.id+'">'+
+          '<input type="checkbox" data-check="'+t.id+'" '+(isDone?"checked":"")+'>'+
+          '<span class="tmain"><span class="ttitle">'+esc(t.wk)+' · '+esc(t.title)+'</span>'+
+          '<span class="tbadges">'+badges.join("")+'</span></span>'+
+          '<span class="caret">'+(isOpen?"▲ hide":"▼ steps")+'</span>'+
+        '</div>'+
+        '<div class="steps">'+stepsHtml+'</div>';
+      sec.appendChild(el);
+    });
+    wrap.appendChild(sec);
+  });
+}
+document.getElementById("people").addEventListener("click", e => {
+  const cb = e.target.closest("input[data-check]");
+  if(cb){ e.stopPropagation(); state[cb.dataset.check] = cb.checked; persist(); render(); return; }
+  const row = e.target.closest(".trow");
+  if(row){ const id=row.dataset.toggle; open[id]=!open[id]; render(); }
+});
+document.getElementById("reset").addEventListener("click", () => {
+  if(confirm("Clear ALL checkmarks"+((db&&setFn)?" for the whole team?":"?"))){ state={}; persist(); render(); }
+});
+countdown(); render(); initSync();
+</script>
+</body>
+</html>
