@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learner-Error Model — Live Demo</title>
+<style>
+:root{--bg:#0f1220;--card:#1a1e33;--ink:#e8eaf6;--mut:#9aa0c3;--acc:#7c6cf0;--ok:#39d98a;--warn:#f0a24b;--bad:#f06a5e;--bar:#262c47}
+*{box-sizing:border-box}body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);margin:0;line-height:1.4}
+.wrap{max-width:880px;margin:0 auto;padding:22px 18px 60px}
+h1{font-size:21px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+button,select{background:var(--card);color:var(--ink);border:1px solid #2e3560;border-radius:8px;padding:8px 14px;font-size:13.5px;cursor:pointer}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+button.active{outline:2px solid var(--acc)}
+.card{background:var(--card);border:1px solid #2e3560;border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.tok{font-size:30px;font-weight:800}.tokmeta{color:var(--mut);font-size:13px;margin-top:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.big{font-size:44px;font-weight:800;line-height:1}
+.lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+.bar{height:14px;background:var(--bar);border-radius:7px;overflow:hidden;margin:5px 0 2px}
+.bar>div{height:100%}
+canvas{width:100%;height:120px;background:var(--bar);border-radius:8px}
+.verdict{font-size:22px;font-weight:800;padding:12px 16px;border-radius:10px;text-align:center}
+.v-answer{background:rgba(57,217,138,.14);color:var(--ok);border:1px solid var(--ok)}
+.v-route{background:rgba(240,106,94,.14);color:var(--bad);border:1px solid var(--bad)}
+.truth{font-size:13px;color:var(--mut);text-align:center;margin-top:6px}
+input[type=range]{width:220px;accent-color:var(--acc)}
+.foot{color:var(--mut);font-size:12px;margin-top:14px}
+#drop{border:2px dashed #2e3560;border-radius:12px;padding:26px;text-align:center;color:var(--mut)}
+</style></head>
+<body><div class="wrap">
+<h1>🧠 A tutor that knows when it doesn't know</h1>
+<p class="sub">Hierarchical Bayesian learner-error model · real Duolingo SLAM dev tokens · precomputed posterior draws (fit on the French course)</p>
+
+<div id="drop">Loading <b>demo_data.json</b>… if this doesn't disappear, <label style="color:var(--acc);cursor:pointer">click to load the file<input id="file" type="file" accept=".json" style="display:none"></label>.</div>
+
+<div id="app" style="display:none">
+<div class="row">
+  <button id="bHome" class="active">Home course (French)</button>
+  <button id="bTrans">Transfer course (Spanish, never seen)</button>
+  <select id="cat">
+    <option value="random">random example</option>
+    <option value="most_confident">model is confident</option>
+    <option value="high_epistemic">model says "I don't know" (epistemic)</option>
+    <option value="high_aleatoric">inherently hard (aleatoric)</option>
+    <option value="confidently_wrong">model confidently wrong</option>
+  </select>
+  <button id="next" class="primary">Next example →</button>
+</div>
+
+<div class="card">
+  <div class="tok" id="tok">—</div>
+  <div class="tokmeta" id="tokmeta">—</div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="big" id="pval">—</div><div class="lbl">predicted P(error) · posterior mean</div>
+    <div style="margin-top:12px"><canvas id="hist" width="400" height="120"></canvas>
+    <div class="lbl">posterior draws — the model's whole belief, not one number</div></div>
+  </div>
+  <div class="card">
+    <div class="lbl">aleatoric — inherent difficulty</div>
+    <div class="bar"><div id="aleaBar" style="background:var(--warn)"></div></div>
+    <div class="lbl" style="margin-top:10px">epistemic — "not enough evidence"</div>
+    <div class="bar"><div id="epiBar" style="background:var(--bad)"></div></div>
+    <div style="margin-top:16px" class="row"><span class="lbl" style="margin:0">abstention threshold</span>
+      <input type="range" id="thr" min="0" max="45" value="15"><span id="thrv" class="lbl" style="margin:0"></span></div>
+    <div class="verdict v-answer" id="verdict" style="margin-top:10px">—</div>
+    <div class="truth" id="truth"></div>
+  </div>
+</div>
+<div class="foot" id="foot"></div>
+</div>
+
+<script>
+let DATA=null, mode='home', ex=null;
+const $=id=>document.getElementById(id);
+function boot(d){DATA=d;$('drop').style.display='none';$('app').style.display='block';pick();}
+fetch('demo_data.json').then(r=>r.json()).then(boot).catch(()=>{});
+$('file').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
+  f.text().then(t=>boot(JSON.parse(t)));});
+$('bHome').onclick=()=>{mode='home';$('bHome').classList.add('active');$('bTrans').classList.remove('active');pick();};
+$('bTrans').onclick=()=>{mode='transfer';$('bTrans').classList.add('active');$('bHome').classList.remove('active');pick();};
+$('next').onclick=pick; $('cat').onchange=pick; $('thr').oninput=()=>render();
+
+function pick(){
+  const pool=DATA[mode].filter(e=>e.cat===$('cat').value);
+  const src=pool.length?pool:DATA[mode];
+  ex=src[Math.floor(Math.random()*src.length)]; render();
+}
+function render(){
+  if(!ex)return;
+  $('tok').textContent='“'+ex.token+'”';
+  $('tokmeta').textContent=`${ex.track} · ${ex.pos} · ${ex.format} · ${ex.session} · learner from ${ex.country} · day ${ex.days.toFixed(1)} · seen this word ${ex.exposure}x before`;
+  $('pval').textContent=(100*ex.p).toFixed(1)+'%';
+  // histogram of draws
+  const c=$('hist'),g=c.getContext('2d');g.clearRect(0,0,c.width,c.height);
+  const bins=new Array(30).fill(0);
+  ex.draws.forEach(v=>bins[Math.min(29,Math.floor(v*30))]++);
+  const mx=Math.max(...bins);
+  g.fillStyle='#7c6cf0';
+  bins.forEach((b,i)=>{const h=b/mx*100;g.fillRect(i*(c.width/30)+1,c.height-8-h,(c.width/30)-2,h);});
+  g.fillStyle='#9aa0c3';g.font='10px sans-serif';g.fillText('0%',2,c.height-1);g.fillText('100%',c.width-26,c.height-1);
+  // uncertainty bars (scaled: alea vs ln2 max entropy; epi scaled x40 to be visible)
+  $('aleaBar').style.width=Math.min(100,ex.alea/0.693*100)+'%';   // scaled to max entropy
+  $('epiBar').style.width=Math.min(100,ex.epi/0.010*100)+'%';      // scaled to 0.010 nats
+  // verdict via confidence vs threshold
+  const conf=Math.abs(ex.p-0.5), thr=$('thr').value/100;
+  $('thrv').textContent='defer if |p-50%| < '+ (100*thr).toFixed(0)+' pts';
+  const answer=conf>=thr;
+  const v=$('verdict');
+  v.textContent=answer?((ex.p>=.5?'PREDICT: ERROR':'PREDICT: CORRECT')):'🤚 I DON\'T KNOW — ROUTE TO HUMAN';
+  v.className='verdict '+(answer?'v-answer':'v-route');
+  $('truth').textContent='(ground truth: learner actually got this '+(ex.label? 'WRONG':'right')+')';
+  const meanEpi=arr=>arr.reduce((a,e)=>a+e.epi,0)/arr.length;
+  $('foot').textContent=`Mean epistemic uncertainty — home: ${meanEpi(DATA.home).toFixed(4)} vs transfer: ${meanEpi(DATA.transfer).toFixed(4)} → the model raises its hand on the course it has never seen. (ADVI posterior; epistemic values are lower bounds.)`;
+}
+</script>
+</div></body></html>
