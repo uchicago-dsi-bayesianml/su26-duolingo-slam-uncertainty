@@ -1,0 +1,20 @@
+# SLAM data and all derivatives (CC BY-NC; large; see data/README.md)
+slam/
+*.tar.gz
+*.parquet
+*.npy
+*.npz
+
+# Rendered/QA artifacts
+*.pdf
+slide-*.jpg
+sp-*.jpg
+thumbnails*.jpg
+*.log
+
+# Environments and tooling
+node_modules/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
