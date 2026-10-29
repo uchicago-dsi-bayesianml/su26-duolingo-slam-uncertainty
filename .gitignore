@@ -18,3 +18,9 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+
+# Added by course staff: raw SLAM files extracted outside slam/, the notebooks'
+# processed/ output folder, and local environments
+*.slam.20190204.*
+processed/
+.venv/
